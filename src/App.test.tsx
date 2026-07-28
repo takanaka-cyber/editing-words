@@ -1,34 +1,46 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import App from './App'
+import { TERMS } from './data/terms'
 
 describe('App', () => {
   beforeEach(() => {
     localStorage.clear()
   })
 
-  it('19語を表示し、検索とカテゴリを同時に絞り込める', () => {
+  it('68語を表示し、検索とカテゴリを同時に絞り込める', () => {
     render(<App />)
 
-    expect(screen.getAllByRole('button', { name: /の詳細を見る$/ })).toHaveLength(19)
+    expect(screen.getAllByRole('button', { name: /の詳細を見る$/ })).toHaveLength(68)
     fireEvent.change(screen.getAllByPlaceholderText('用語をさがす')[0], {
       target: { value: '音量' },
     })
     expect(screen.getAllByRole('button', { name: /の詳細を見る$/ }).length).toBeGreaterThan(0)
 
-    fireEvent.click(screen.getAllByRole('button', { name: /^音 04$/ })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^音 11$/ })[0])
     const visibleCards = screen.getAllByRole('button', { name: /の詳細を見る$/ })
-    expect(visibleCards.every((button) => /ダッキング|MA|ノーマライズ/.test(button.getAttribute('aria-label') ?? ''))).toBe(
-      true,
-    )
+    const audioNames = TERMS.filter((term) => term.cat === '音').map((term) => term.name)
+    expect(
+      visibleCards.every((button) =>
+        audioNames.some((name) => button.getAttribute('aria-label') === `${name}の詳細を見る`),
+      ),
+    ).toBe(true)
   })
 
   it('詳細表示とブックマークをlocalStorageへ保存する', () => {
     render(<App />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'ジャンプカットの詳細を見る' }))
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'ジャンプカット / ジェットカットの詳細を見る',
+      }),
+    )
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('heading', { name: 'ジャンプカット' })).toBeVisible()
+    expect(
+      within(dialog).getByRole('heading', {
+        name: 'ジャンプカット / ジェットカット',
+      }),
+    ).toBeVisible()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'ブックマークに追加' }))
     expect(localStorage.getItem('ew-bookmarks')).toContain('jumpcut')

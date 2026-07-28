@@ -22,7 +22,7 @@
 
 <https://docs.google.com/spreadsheets/d/11nx6T1PglvvA1SsnDMjfYnaWjC90mkz81wwqUZJIPfo/edit?gid=0#gid=0>
 
-`src/data/terms.ts` は仮共有版の19語スナップショットです。スプレッドシートの更新完了後、read-onlyで再取得して差し替えます。実行時のSheets接続は行いません。
+`src/data/terms.ts` は `単語集!A2:E69` からread-onlyで取得した68語の静的スナップショットです。正本側の更新時に再取得して差し替えます。実行時のSheets接続は行いません。
 
 ## ローカル起動
 

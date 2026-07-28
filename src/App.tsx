@@ -8,7 +8,7 @@ import {
 import { TERMS, type Term } from './data/terms'
 import { createQuiz, type QuizQuestion } from './quiz'
 
-type Filter = 'all' | '映像' | '音' | 'bookmarks'
+type Filter = 'all' | '映像' | '音' | 'その他' | 'bookmarks'
 type Screen = 'home' | 'quiz' | 'result'
 
 type QuizRun = {
@@ -23,10 +23,15 @@ const FILTER_LABELS: Record<Filter, { en: string; ja: string }> = {
   all: { en: 'ALL TERMS', ja: 'すべての用語' },
   映像: { en: 'VIDEO TERMS', ja: '映像の用語' },
   音: { en: 'AUDIO TERMS', ja: '音の用語' },
+  その他: { en: 'FORMAT & DATA', ja: '規格・データの用語' },
   bookmarks: { en: 'BOOKMARKS', ja: 'ブックマーク' },
 }
 
 const LETTERS = ['A', 'B', 'C', 'D']
+
+function categoryLabel(category: Term['cat']) {
+  return category === 'その他' ? category : `${category}系`
+}
 
 function readStoredIds(key: string): string[] {
   try {
@@ -190,6 +195,7 @@ function Sidebar({
     { id: 'all', label: 'すべて', count: TERMS.length },
     { id: '映像', label: '映像', count: TERMS.filter((term) => term.cat === '映像').length },
     { id: '音', label: '音', count: TERMS.filter((term) => term.cat === '音').length },
+    { id: 'その他', label: 'その他', count: TERMS.filter((term) => term.cat === 'その他').length },
     { id: 'bookmarks', label: 'ブックマーク', count: bookmarks.length },
   ]
 
@@ -297,6 +303,7 @@ function MobileFilters({
     { id: 'all', label: 'すべて', count: TERMS.length },
     { id: '映像', label: '映像', count: TERMS.filter((term) => term.cat === '映像').length },
     { id: '音', label: '音', count: TERMS.filter((term) => term.cat === '音').length },
+    { id: 'その他', label: 'その他', count: TERMS.filter((term) => term.cat === 'その他').length },
     { id: 'bookmarks', label: 'ブックマーク', count: bookmarks.length },
   ]
   return (
@@ -429,7 +436,9 @@ function DetailPanel({
         </div>
         <div className="detail-panel__content">
           <div className="detail-panel__meta">
-            <span className={`category-chip category-chip--${term.cat}`}>{term.cat}系</span>
+            <span className={`category-chip category-chip--${term.cat}`}>
+              {categoryLabel(term.cat)}
+            </span>
             <span className="oswald">{term.en}</span>
           </div>
           <h2 id="detail-title">{term.name}</h2>
@@ -702,7 +711,9 @@ export default function App() {
         !normalizedQuery ||
         term.name.toLocaleLowerCase('ja').includes(normalizedQuery) ||
         term.en.toLocaleLowerCase('en').includes(normalizedQuery) ||
-        term.meaning.toLocaleLowerCase('ja').includes(normalizedQuery)
+        term.meaning.toLocaleLowerCase('ja').includes(normalizedQuery) ||
+        term.subcategory.toLocaleLowerCase('ja').includes(normalizedQuery) ||
+        term.example.toLocaleLowerCase('ja').includes(normalizedQuery)
       return categoryMatches && queryMatches
     })
   }, [bookmarks, filter, query])

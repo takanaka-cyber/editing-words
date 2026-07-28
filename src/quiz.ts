@@ -74,13 +74,30 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function maskAnswerTerm(value: string, term: Term): string {
-  const shortName = term.name.split(/[（(]/)[0]
-  const aliases = [term.name, shortName]
-    .filter((alias): alias is string => Boolean(alias))
-    .sort((left, right) => right.length - left.length)
+export function getTermAliases(term: Term): string[] {
+  const names = term.name
+    .split(/\s*\/\s*/)
+    .flatMap((name) => {
+      const withoutParentheses = name.split(/[（(]/)[0].trim()
+      const parenthetical = [...name.matchAll(/[（(]([^）)]*)[）)]/g)]
+        .map((match) => match[1].trim())
+        .filter(Boolean)
+      return [name.trim(), withoutParentheses, ...parenthetical]
+    })
+    .filter(Boolean)
 
-  return aliases.reduce(
+  const verbStems = names
+    .filter((name) => /[るす]$/.test(name))
+    .map((name) => name.slice(0, -1))
+    .filter((name) => name.length >= 3)
+
+  return [...new Set([...names, ...verbStems])].sort(
+    (left, right) => right.length - left.length,
+  )
+}
+
+export function maskAnswerTerm(value: string, term: Term): string {
+  return getTermAliases(term).reduce(
     (masked, alias) =>
       masked.replace(new RegExp(escapeRegExp(alias), 'gi'), '＿＿＿＿'),
     value,
@@ -106,7 +123,7 @@ function isEligibleForKind(term: Term, kind: QuizKind): boolean {
   }
 
   if (kind === 'meaning-to-term') {
-    return !term.meaning.includes(term.name)
+    return !getTermAliases(term).some((alias) => term.meaning.includes(alias))
   }
 
   if (kind === 'rewrite') {
@@ -140,7 +157,11 @@ function buildQuestion(
   random: RandomSource,
   sequence: number,
 ): QuizQuestion {
-  const choiceTerms = getChoiceTerms(term, terms, random)
+  const choiceTerms = getChoiceTerms(
+    term,
+    terms.filter((candidate) => isEligibleForKind(candidate, kind)),
+    random,
+  )
   const base = {
     id: `${sequence}-${kind}-${term.id}`,
     kind,

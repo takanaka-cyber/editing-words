@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { TERMS } from './data/terms'
-import { createQuiz, maskAnswerTerm, stripOuterQuotes } from './quiz'
+import { SOURCE_SNAPSHOT, TERMS } from './data/terms'
+import {
+  createQuiz,
+  getTermAliases,
+  maskAnswerTerm,
+  stripOuterQuotes,
+} from './quiz'
 
 function deterministicRandom() {
   const values = [0.12, 0.71, 0.32, 0.94, 0.44, 0.03, 0.63, 0.26]
@@ -13,6 +18,17 @@ function deterministicRandom() {
 }
 
 describe('createQuiz', () => {
+  it('正本スナップショット68語を重複なしで保持する', () => {
+    expect(TERMS).toHaveLength(SOURCE_SNAPSHOT.rowCount)
+    expect(new Set(TERMS.map((term) => term.id)).size).toBe(68)
+    expect(TERMS.filter((term) => term.cat === '映像')).toHaveLength(44)
+    expect(TERMS.filter((term) => term.cat === '音')).toHaveLength(11)
+    expect(TERMS.filter((term) => term.cat === 'その他')).toHaveLength(13)
+    expect(TERMS.map((term) => term.sourceRow)).toEqual(
+      Array.from({ length: 68 }, (_, index) => index + 2),
+    )
+  })
+
   it('5問を4形式の指定配分で生成する', () => {
     const questions = createQuiz(TERMS, deterministicRandom())
     const counts = questions.reduce<Record<string, number>>((result, question) => {
@@ -67,7 +83,11 @@ describe('createQuiz', () => {
             (choice) => choice.id === question.correctChoiceId,
           )
           expect(correctChoice).toBeDefined()
-          expect(question.prompt).not.toContain(correctChoice?.label)
+          const answer = TERMS.find((term) => term.id === question.answerTermId)
+          expect(answer).toBeDefined()
+          getTermAliases(answer!).forEach((alias) => {
+            expect(question.prompt).not.toContain(alias)
+          })
         })
     }
   })
@@ -87,7 +107,7 @@ describe('maskAnswerTerm', () => {
     const kerning = TERMS.find((term) => term.id === 'kerning')
     expect(kerning).toBeDefined()
     expect(maskAnswerTerm(kerning?.example ?? '', kerning!)).toBe(
-      '「タイトルの＿＿＿＿を少し詰めてください」',
+      '「タイトル文字の＿＿＿＿を少し詰めて（＿＿＿＿して）、まとまり感を出してください」',
     )
   })
 
@@ -95,7 +115,18 @@ describe('maskAnswerTerm', () => {
     const soundEffect = TERMS.find((term) => term.id === 'se')
     expect(soundEffect).toBeDefined()
     expect(maskAnswerTerm(soundEffect?.example ?? '', soundEffect!)).toBe(
-      '「テロップの出現に合わせて＿＿＿＿を入れてください」',
+      '「テロップが出る瞬間に、注意を引くための＿＿＿＿（効果音）を追加してください」',
+    )
+  })
+
+  it('スラッシュ区切りと活用形の別名も伏せ字にする', () => {
+    const jumpcut = TERMS.find((term) => term.id === 'jumpcut')
+    const speedUp = TERMS.find((term) => term.id === 'speed-up')
+    expect(maskAnswerTerm(jumpcut?.example ?? '', jumpcut!)).not.toContain(
+      'ジャンプカット',
+    )
+    expect(maskAnswerTerm(speedUp?.example ?? '', speedUp!)).not.toContain(
+      'テンポを上げ',
     )
   })
 })

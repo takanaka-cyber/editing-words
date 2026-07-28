@@ -189,10 +189,16 @@ input:focus-visible {
   background: var(--coral);
 }
 
+.filter-button--その他 .filter-button__dot,
+.mobile-filter--その他 .filter-button__dot {
+  transform: rotate(45deg);
+  background: var(--lavender);
+}
+
 .filter-button--bookmarks .filter-button__dot,
 .mobile-filter--bookmarks .filter-button__dot {
   border-radius: 999px;
-  background: var(--lavender);
+  background: var(--lime);
 }
 
 .filter-button__count {
@@ -543,6 +549,11 @@ input:focus-visible {
 .category-chip--音 {
   border-color: var(--coral);
   color: var(--coral);
+}
+
+.category-chip--その他 {
+  border-color: #7863c4;
+  color: #604aa8;
 }
 
 .empty-state {
