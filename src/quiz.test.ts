@@ -24,6 +24,9 @@ describe('createQuiz', () => {
     expect(TERMS.filter((term) => term.cat === '映像')).toHaveLength(44)
     expect(TERMS.filter((term) => term.cat === '音')).toHaveLength(11)
     expect(TERMS.filter((term) => term.cat === 'その他')).toHaveLength(13)
+    expect(TERMS.map((term) => term.tile)).toEqual(
+      TERMS.map((term) => `assets/terms/${term.id}.png`),
+    )
     expect(TERMS.map((term) => term.sourceRow)).toEqual(
       Array.from({ length: 68 }, (_, index) => index + 2),
     )

@@ -115,16 +115,6 @@ const SOURCE_ROWS: SourceRow[] = [
   ['tonemana', 'TONE & MANNER', 'トンマナ（トーン＆マナー）', 'その他', '規格・データ', 'ブランドや商品世界観に合わせた「色味・フォント・デザインルール」の一貫性。', '「ブランドのトンマナに合わせ、テロップのメインカラーは〇〇で統一してください」'],
 ]
 
-const TILES: Record<Subcategory, string[]> = {
-  'カット・テンポ': ['tile-scissors.png', 'tile-insert.png', 'tile-speed.png', 'tile-timeline.png'],
-  'テロップ・文字': ['tile-caption.png', 'tile-font.png', 'tile-zabuton.png', 'tile-edge.png', 'tile-shadow.png', 'tile-glow.png', 'tile-kerning.png', 'tile-weight.png'],
-  'カメラ・配置': ['tile-insert.png', 'tile-spare-timeline-blocks.png', 'tile-speed.png', 'tile-spare-transition-dots.png'],
-  画面切り替え: ['tile-transition.png', 'tile-spare-transition-dots.png', 'tile-speed.png'],
-  '色調・画質': ['tile-color.png', 'tile-glow.png', 'tile-shadow.png'],
-  '音響・音声': ['tile-waveform.png', 'tile-se.png', 'tile-ma.png', 'tile-normalize.png', 'tile-spare-waveform-playback.png'],
-  '規格・データ': ['tile-timecode.png', 'tile-timeline.png', 'tile-tonmana.png', 'tile-spare-timeline-blocks.png'],
-}
-
 const QUIZ_REWRITES: Record<string, { badExample: string; goodExample: string }> = {
   jumpcut: {
     badExample: 'もっとテンポ良くして',
@@ -193,7 +183,6 @@ const categoryFromSource = (category: SourceCategory): Category =>
 
 export const TERMS: Term[] = SOURCE_ROWS.map(
   ([id, en, name, category, subcategory, meaning, example], index) => {
-    const tiles = TILES[subcategory]
     return {
       id,
       en,
@@ -203,7 +192,7 @@ export const TERMS: Term[] = SOURCE_ROWS.map(
       meaning,
       example,
       sourceRow: index + 2,
-      tile: `assets/tiles/${tiles[index % tiles.length]}`,
+      tile: `assets/terms/${id}.png`,
       ...QUIZ_REWRITES[id],
     }
   },
