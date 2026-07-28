@@ -613,11 +613,14 @@ input:focus-visible {
   place-items: center;
   padding: 0;
   border: 1.5px solid var(--navy);
-  font-family: Oswald, sans-serif;
-  font-size: 25px;
-  line-height: 1;
   background: var(--card);
   cursor: pointer;
+}
+
+.detail-panel__nav button svg {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
 .detail-panel__nav button:hover {
