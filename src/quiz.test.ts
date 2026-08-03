@@ -18,17 +18,17 @@ function deterministicRandom() {
 }
 
 describe('createQuiz', () => {
-  it('正本スナップショット68語を重複なしで保持する', () => {
+  it('正本スナップショット65語を重複なしで保持する', () => {
     expect(TERMS).toHaveLength(SOURCE_SNAPSHOT.rowCount)
-    expect(new Set(TERMS.map((term) => term.id)).size).toBe(68)
-    expect(TERMS.filter((term) => term.cat === '映像')).toHaveLength(44)
+    expect(new Set(TERMS.map((term) => term.id)).size).toBe(65)
+    expect(TERMS.filter((term) => term.cat === '映像')).toHaveLength(41)
     expect(TERMS.filter((term) => term.cat === '音')).toHaveLength(11)
     expect(TERMS.filter((term) => term.cat === 'その他')).toHaveLength(13)
     expect(TERMS.map((term) => term.tile)).toEqual(
       TERMS.map((term) => `assets/terms/${term.id}.png`),
     )
     expect(TERMS.map((term) => term.sourceRow)).toEqual(
-      Array.from({ length: 68 }, (_, index) => index + 2),
+      Array.from({ length: 65 }, (_, index) => index + 2),
     )
   })
 
@@ -124,12 +124,12 @@ describe('maskAnswerTerm', () => {
 
   it('スラッシュ区切りと活用形の別名も伏せ字にする', () => {
     const jumpcut = TERMS.find((term) => term.id === 'jumpcut')
-    const speedUp = TERMS.find((term) => term.id === 'speed-up')
+    const pause = TERMS.find((term) => term.id === 'pause')
     expect(maskAnswerTerm(jumpcut?.example ?? '', jumpcut!)).not.toContain(
       'ジャンプカット',
     )
-    expect(maskAnswerTerm(speedUp?.example ?? '', speedUp!)).not.toContain(
-      'テンポを上げ',
+    expect(maskAnswerTerm(pause?.example ?? '', pause!)).not.toContain(
+      'タメを作',
     )
   })
 })

@@ -8,10 +8,10 @@ describe('App', () => {
     localStorage.clear()
   })
 
-  it('68語を表示し、検索とカテゴリを同時に絞り込める', () => {
+  it('65語を表示し、検索とカテゴリを同時に絞り込める', () => {
     render(<App />)
 
-    expect(screen.getAllByRole('button', { name: /の詳細を見る$/ })).toHaveLength(68)
+    expect(screen.getAllByRole('button', { name: /の詳細を見る$/ })).toHaveLength(65)
     fireEvent.change(screen.getAllByPlaceholderText('用語をさがす')[0], {
       target: { value: '音量' },
     })
