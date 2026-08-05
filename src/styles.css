@@ -1357,22 +1357,22 @@ input:focus-visible {
 @keyframes ewSlideIn {
   from {
     opacity: 0;
-    transform: translateX(60px);
+    margin-right: -60px;
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    margin-right: 0;
   }
 }
 
 @keyframes ewUp {
   from {
     opacity: 0;
-    transform: translateY(70px);
+    margin-top: 70px;
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    margin-top: 0;
   }
 }
 
