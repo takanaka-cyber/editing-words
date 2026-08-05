@@ -1,11 +1,13 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type MouseEvent,
 } from 'react'
 import { TERMS, type Term } from './data/terms'
+import { TERM_MEDIA, type TermMedia as TermMediaData } from './data/termMedia'
 import { createQuiz, type QuizQuestion } from './quiz'
 
 type Filter = 'all' | '映像' | '音' | 'その他' | 'bookmarks'
@@ -326,6 +328,241 @@ function MobileFilters({
   )
 }
 
+function TermMedia({
+  term,
+  mode,
+}: {
+  term: Term
+  mode: 'card' | 'detail'
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const fullscreenRef = useRef(false)
+  const suppressEscapeUntilRef = useRef(0)
+  const [soundOn, setSoundOn] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
+  const media: TermMediaData = TERM_MEDIA[term.id] ?? {
+    kind: 'image',
+    src: term.tile,
+    hasAudio: false,
+  }
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || media.kind !== 'video') return
+
+    video.muted = true
+    setSoundOn(false)
+
+    if (mode === 'detail') {
+      const playResult = video.play()
+      playResult?.catch(() => undefined)
+      return () => {
+        video.pause()
+        video.currentTime = 0
+      }
+    }
+
+    if (typeof IntersectionObserver === 'undefined') return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          const playResult = video.play()
+          playResult?.catch(() => undefined)
+        } else {
+          video.pause()
+        }
+      },
+      { threshold: 0.35 },
+    )
+    observer.observe(video)
+
+    return () => {
+      observer.disconnect()
+      video.pause()
+      video.currentTime = 0
+    }
+  }, [media.kind, media.src, mode])
+
+  useEffect(() => {
+    if (!expanded) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+      }
+      if (
+        event.key === 'Escape' &&
+        document.fullscreenElement === containerRef.current &&
+        document.exitFullscreen
+      ) {
+        void document.exitFullscreen().catch(() => undefined)
+        return
+      }
+      if (
+        event.key === 'Escape' &&
+        !document.fullscreenElement &&
+        !fullscreenRef.current &&
+        Date.now() >= suppressEscapeUntilRef.current
+      ) {
+        setExpanded(false)
+      }
+    }
+    const handleFullscreenChange = () => {
+      const nextFullscreen = document.fullscreenElement === containerRef.current
+      if (!nextFullscreen && fullscreenRef.current) {
+        suppressEscapeUntilRef.current = Date.now() + 1500
+      }
+      fullscreenRef.current = nextFullscreen
+      setFullscreen(nextFullscreen)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+    }
+  }, [expanded])
+
+  const toggleSound = () => {
+    const video = videoRef.current
+    if (!video || media.kind !== 'video') return
+
+    if (soundOn) {
+      video.muted = true
+      setSoundOn(false)
+      return
+    }
+
+    video.muted = false
+    video.volume = 1
+    const playResult = video.play()
+    setSoundOn(true)
+    playResult?.catch(() => {
+      video.muted = true
+      setSoundOn(false)
+    })
+  }
+
+  const closeExpanded = async () => {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      await document.exitFullscreen().catch(() => undefined)
+    }
+    setExpanded(false)
+    fullscreenRef.current = false
+    setFullscreen(false)
+  }
+
+  const enterFullscreen = async () => {
+    const container = containerRef.current
+    if (!container) return
+
+    if (container.requestFullscreen) {
+      await container.requestFullscreen().catch(() => undefined)
+      return
+    }
+
+    const video = videoRef.current as
+      | (HTMLVideoElement & { webkitEnterFullscreen?: () => void })
+      | null
+    video?.webkitEnterFullscreen?.()
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className={`term-media term-media--${mode} ${expanded ? 'is-expanded' : ''} ${
+        fullscreen ? 'is-fullscreen' : ''
+      }`}
+      onMouseDown={expanded ? () => void closeExpanded() : undefined}
+    >
+      <div
+        className="term-media__stage"
+        onMouseDown={expanded ? (event) => event.stopPropagation() : undefined}
+      >
+        {media.kind === 'video' ? (
+          <video
+            ref={videoRef}
+            className="term-media__asset"
+            src={media.src}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-label={mode === 'detail' ? `${term.name}の参考動画` : undefined}
+            aria-hidden={mode === 'card' ? 'true' : undefined}
+          />
+        ) : (
+          <img
+            className="term-media__asset"
+            src={media.src}
+            alt={mode === 'detail' ? `${term.name}の参考画像` : ''}
+          />
+        )}
+        {mode === 'detail' && !expanded && (
+          <button
+            className="term-media__expand"
+            type="button"
+            onClick={() => setExpanded(true)}
+            aria-label={`${term.name}を拡大表示`}
+          >
+            <span aria-hidden="true">⛶</span>
+            拡大
+          </button>
+        )}
+        {mode === 'detail' && expanded && (
+          <>
+            <button
+              className="term-media__expand-close"
+              type="button"
+              onClick={() => void closeExpanded()}
+              aria-label="拡大表示を閉じる"
+            >
+              <CrossIcon />
+            </button>
+            <div className="term-media__controls">
+              {media.hasAudio && (
+                <button
+                  className={`term-media__sound ${soundOn ? 'is-active' : ''}`}
+                  type="button"
+                  onClick={toggleSound}
+                  aria-pressed={soundOn}
+                >
+                  <span aria-hidden="true">{soundOn ? '■' : '▶'}</span>
+                  {soundOn ? '音を止める' : '音を再生'}
+                </button>
+              )}
+              <button
+                className="term-media__fullscreen"
+                type="button"
+                onClick={() => void enterFullscreen()}
+                aria-label={`${term.name}を全画面表示`}
+              >
+                <span aria-hidden="true">⛶</span>
+                全画面
+              </button>
+            </div>
+          </>
+        )}
+        {mode === 'detail' && media.hasAudio && !expanded && (
+          <button
+            className={`term-media__sound ${soundOn ? 'is-active' : ''}`}
+            type="button"
+            onClick={toggleSound}
+            aria-pressed={soundOn}
+          >
+            <span aria-hidden="true">{soundOn ? '■' : '▶'}</span>
+            {soundOn ? '音を止める' : '音を再生'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function TermCard({
   term,
   index,
@@ -350,11 +587,9 @@ function TermCard({
         onClick={onOpen}
         aria-label={`${term.name}の詳細を見る`}
       />
-      <div
-        className="term-card__tile"
-        style={{ backgroundImage: `url("${term.tile}")` }}
-        aria-hidden="true"
-      />
+      <div className="term-card__tile">
+        <TermMedia term={term} mode="card" />
+      </div>
       <button
         type="button"
         className={`bookmark-button ${bookmarked ? 'is-active' : ''}`}
@@ -442,12 +677,9 @@ function DetailPanel({
             <span className="oswald">{term.en}</span>
           </div>
           <h2 id="detail-title">{term.name}</h2>
-          <div
-            className="detail-panel__hero"
-            style={{ backgroundImage: `url("${term.tile}")` }}
-            role="img"
-            aria-label={`${term.name}の抽象グラフィック`}
-          />
+          <div className="detail-panel__hero">
+            <TermMedia term={term} mode="detail" />
+          </div>
           <div className="detail-section-title detail-section-title--meaning">
             <span />
             <strong>意味</strong>
@@ -730,7 +962,14 @@ export default function App() {
   useEffect(() => {
     if (!detailId) return
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDetailId(null)
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        !document.fullscreenElement &&
+        !document.querySelector('.term-media.is-expanded')
+      ) {
+        setDetailId(null)
+      }
     }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
