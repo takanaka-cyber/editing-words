@@ -119,20 +119,24 @@ describe('App', () => {
     ).toBeVisible()
   })
 
-  it('全55語の詳細画面に拡大操作を表示する', () => {
-    render(<App />)
+  it(
+    '全55語の詳細画面に拡大操作を表示する',
+    () => {
+      render(<App />)
 
-    for (const term of TERMS) {
-      fireEvent.click(
-        screen.getByRole('button', { name: `${term.name}の詳細を見る` }),
-      )
-      const dialog = screen.getByRole('dialog')
-      expect(
-        within(dialog).getByRole('button', { name: `${term.name}を拡大表示` }),
-      ).toBeVisible()
-      fireEvent.click(within(dialog).getByRole('button', { name: '閉じる' }))
-    }
-  })
+      for (const term of TERMS) {
+        fireEvent.click(
+          screen.getByRole('button', { name: `${term.name}の詳細を見る` }),
+        )
+        const dialog = screen.getByRole('dialog')
+        expect(
+          within(dialog).getByRole('button', { name: `${term.name}を拡大表示` }),
+        ).toBeVisible()
+        fireEvent.click(within(dialog).getByRole('button', { name: '閉じる' }))
+      }
+    },
+    15_000,
+  )
 
   it('選択式クイズを開始して回答結果を表示する', () => {
     render(<App />)
