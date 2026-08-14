@@ -39,7 +39,9 @@ const FILTER_LABELS: Record<Filter, { en: string; ja: string }> = {
 
 const LETTERS = ['A', 'B', 'C', 'D']
 const TERM_IDS = new Set(TERMS.map((term) => term.id))
+const QUIZ_CONTENT_VERSION = 'quiz-content-v2'
 const QUIZ_SOURCE_SIGNATURE = [
+  QUIZ_CONTENT_VERSION,
   SOURCE_SNAPSHOT.spreadsheetId,
   SOURCE_SNAPSHOT.range,
   SOURCE_SNAPSHOT.syncedOn,

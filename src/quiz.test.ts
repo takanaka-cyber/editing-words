@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { SOURCE_SNAPSHOT, TERMS } from './data/terms'
 import {
+  buildQuestion,
   createQuiz,
+  formatQuizTermName,
   getTermAliases,
+  isEligibleForKind,
   maskAnswerTerm,
   questionCountForMode,
   stripOuterQuotes,
+  type QuizKind,
   type TermQuizStat,
 } from './quiz'
 
@@ -18,6 +22,21 @@ function deterministicRandom() {
     return value
   }
 }
+
+function seededRandom(seed: number) {
+  let state = seed
+  return () => {
+    state = (state * 16_807) % 2_147_483_647
+    return (state - 1) / 2_147_483_646
+  }
+}
+
+const QUIZ_KINDS: QuizKind[] = [
+  'example-to-term',
+  'meaning-to-term',
+  'term-to-meaning',
+  'rewrite',
+]
 
 describe('createQuiz', () => {
   it('正本スナップショット55語を重複なしで保持する', () => {
@@ -126,13 +145,7 @@ describe('createQuiz', () => {
 
   it('用語を当てる設問文に正解語を表示しない', () => {
     for (let seed = 1; seed <= 100; seed += 1) {
-      let state = seed
-      const seededRandom = () => {
-        state = (state * 16_807) % 2_147_483_647
-        return (state - 1) / 2_147_483_646
-      }
-
-      const questions = createQuiz(TERMS, seededRandom)
+      const questions = createQuiz(TERMS, seededRandom(seed))
       questions
         .filter(
           (question) =>
@@ -152,6 +165,90 @@ describe('createQuiz', () => {
         })
     }
   })
+
+  it('全用語×全出題可能形式で正解が1件だけ存在し、選択肢が重複しない', () => {
+    let audited = 0
+    const auditedByKind: Record<QuizKind, number> = {
+      'example-to-term': 0,
+      'meaning-to-term': 0,
+      'term-to-meaning': 0,
+      rewrite: 0,
+    }
+
+    for (const kind of QUIZ_KINDS) {
+      for (const term of TERMS.filter((candidate) => isEligibleForKind(candidate, kind))) {
+        const question = buildQuestion(kind, term, TERMS, seededRandom(audited + 1), audited)
+        audited += 1
+        auditedByKind[kind] += 1
+
+        expect(question.answerTermId).toBe(term.id)
+        expect(question.choices).toHaveLength(4)
+        expect(
+          question.choices.filter((choice) => choice.id === question.correctChoiceId),
+        ).toHaveLength(1)
+        expect(new Set(question.choices.map((choice) => choice.id)).size).toBe(4)
+        expect(new Set(question.choices.map((choice) => choice.label)).size).toBe(4)
+        expect(question.answerName).not.toContain('（）')
+        question.choices.forEach((choice) => {
+          expect(choice.label).not.toContain('（）')
+        })
+
+        if (kind === 'example-to-term') {
+          expect(question.prompt).toContain('＿＿＿＿')
+          getTermAliases(term).forEach((alias) => {
+            expect(question.prompt).not.toContain(alias)
+          })
+        }
+
+        if (kind === 'meaning-to-term') {
+          getTermAliases(term).forEach((alias) => {
+            expect(question.prompt).not.toContain(alias)
+          })
+        }
+
+        if (kind === 'rewrite') {
+          expect(question.prompt).toContain('意図を変えず')
+          expect(question.choices.find((choice) => choice.id === term.id)?.label).toBe(
+            term.goodExample,
+          )
+        }
+      }
+    }
+
+    expect(auditedByKind).toEqual({
+      'example-to-term': 54,
+      'meaning-to-term': 52,
+      'term-to-meaning': 55,
+      rewrite: 14,
+    })
+    expect(audited).toBe(175)
+  })
+
+  it('5問・20問・全55問を100通り生成して構造を検査する', () => {
+    for (let seed = 1; seed <= 100; seed += 1) {
+      for (const count of [5, 20, 55]) {
+        const questions = createQuiz(TERMS, {
+          count,
+          random: seededRandom(seed * 100 + count),
+        })
+
+        expect(questions).toHaveLength(count)
+        expect(new Set(questions.map((question) => question.answerTermId)).size).toBe(
+          count,
+        )
+        questions.forEach((question, index) => {
+          expect(question.choices).toHaveLength(4)
+          expect(
+            question.choices.filter(
+              (choice) => choice.id === question.correctChoiceId,
+            ),
+          ).toHaveLength(1)
+          expect(new Set(question.choices.map((choice) => choice.label)).size).toBe(4)
+          if (index > 0) expect(question.kind).not.toBe(questions[index - 1].kind)
+        })
+      }
+    }
+  })
 })
 
 describe('questionCountForMode', () => {
@@ -169,6 +266,13 @@ describe('stripOuterQuotes', () => {
     expect(stripOuterQuotes('「透明感」のテロップを青くしてください')).toBe(
       '「透明感」のテロップを青くしてください',
     )
+  })
+})
+
+describe('formatQuizTermName', () => {
+  it('正本に残る末尾の空括弧をクイズ表示だけから除く', () => {
+    expect(formatQuizTermName('タイムコード（）')).toBe('タイムコード')
+    expect(formatQuizTermName('フェードイン（音）')).toBe('フェードイン（音）')
   })
 })
 
@@ -198,5 +302,46 @@ describe('maskAnswerTerm', () => {
     expect(maskAnswerTerm(pause?.example ?? '', pause!)).not.toContain(
       'タメを作',
     )
+  })
+})
+
+describe('rewrite intent contracts', () => {
+  const anchors: Record<string, string[]> = {
+    jumpcut: ['冒頭5秒', '間'],
+    insert: ['00:05', '手元'],
+    rough: ['構成', 'テンポ'],
+    telop: ['毛穴ケア', '0.5秒'],
+    font: ['手書き', '親'],
+    zabuton: ['白文字', '不透明度50%', '黒'],
+    edge: ['タイトル文字', '白', '細'],
+    glow: ['透明感', '薄い青', 'ツヤ'],
+    kerning: ['メインキャッチ', '少し詰め', 'まとまり'],
+    weight: ['無料'],
+    transition: ['00:08', 'ズーム'],
+    colorgrade: ['透明感', '青み'],
+    timecode: ['15', 'テロップ', '赤色'],
+    tonemana: ['ピンク', '明朝体', '統一'],
+  }
+
+  it('全14組で曖昧な依頼と明確な依頼の中核意図が一致する', () => {
+    const rewriteTerms = TERMS.filter((term) => term.badExample && term.goodExample)
+    expect(rewriteTerms).toHaveLength(14)
+    expect(new Set(rewriteTerms.map((term) => term.id))).toEqual(
+      new Set(Object.keys(anchors)),
+    )
+
+    rewriteTerms.forEach((term) => {
+      anchors[term.id].forEach((anchor) => {
+        expect(term.badExample).toContain(anchor)
+        expect(term.goodExample).toContain(anchor)
+      })
+    })
+  })
+
+  it('粗編集の設問は完成まで作り込む意図へ反転しない', () => {
+    const rough = TERMS.find((term) => term.id === 'rough')
+    expect(rough?.badExample).not.toMatch(/完璧|作り込/)
+    expect(rough?.badExample).toContain('構成とテンポ')
+    expect(rough?.goodExample).toContain('粗編集')
   })
 })

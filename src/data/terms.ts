@@ -104,59 +104,59 @@ const SOURCE_ROWS: SourceRow[] = [
 
 const QUIZ_REWRITES: Record<string, { badExample: string; goodExample: string }> = {
   jumpcut: {
-    badExample: 'もっとテンポ良くして',
+    badExample: '冒頭5秒の話す間をもっと詰めて、テンポ良くして',
     goodExample: '冒頭5秒はジャンプカットで間（無音）を極限まで詰めてください',
   },
   insert: {
-    badExample: 'ずっと顔が映っていて退屈',
+    badExample: '00:05からの解説中、顔だけが続いて退屈なので手元も見せたい',
     goodExample: '00:05からの解説シーンに、手元のインサートを被せてください',
   },
   rough: {
-    badExample: '最初から完璧に作り込んで見せて',
+    badExample: '仕上げ前に、まず構成とテンポだけ確認したい',
     goodExample: '構成とテンポを確認したいので、テロップなしの粗編集で一度見せてください',
   },
   telop: {
-    badExample: 'フォントを「毛穴ケア」に変えて',
+    badExample: '00:03の文字を「毛穴ケア」に変えて、0.5秒早く出して',
     goodExample: 'テロップの文言を「毛穴ケア」に変更し、表示タイミングを0.5秒早めてください',
   },
   font: {
-    badExample: '文字の雰囲気が安っぽい',
+    badExample: 'テロップを手書き風の書体にして、親しみやすくしたい',
     goodExample: '親近感を出すため、テロップを手書き風のフォントに変更してください',
   },
   zabuton: {
-    badExample: '文字が背景と同化して見にくい',
+    badExample: '白文字が背景と同化するので、後ろに不透明度50%の黒い帯を入れたい',
     goodExample: '白文字の下に、不透明度50%の黒い座布団を敷いてください',
   },
   edge: {
-    badExample: '文字をもっと目立たせて',
+    badExample: 'タイトル文字を細い白フチで目立たせたい',
     goodExample: 'タイトル文字に白いエッジを細めに付けてください',
   },
   glow: {
-    badExample: '美白感やツヤ感を文字で表現したい',
+    badExample: '「透明感」の文字を薄い青の光でツヤっぽく見せたい',
     goodExample: '「透明感」のテロップに薄い青のグローをかけ、ツヤ感を出してください',
   },
   kerning: {
-    badExample: '文字のデザインがまとまって見えない',
+    badExample: 'メインキャッチの文字間隔を少し詰めて、まとまりを出したい',
     goodExample: 'メインキャッチのカーニングを少し詰め、まとまり感を出してください',
   },
   weight: {
-    badExample: '大事な単語を目立たせて',
+    badExample: '「無料」の文字だけ太くして目立たせたい',
     goodExample: '「無料」の文字だけフォントのウェイトをBoldに変更してください',
   },
   transition: {
-    badExample: 'カットの切り替えをカッコよくして',
+    badExample: '00:08の場面転換を、ズームする動きで切り替えたい',
     goodExample: '場面転換（00:08）で、ズームインするトランジションを入れてください',
   },
   colorgrade: {
-    badExample: 'いい感じの綺麗な色にして',
+    badExample: '透明感が出るよう、映像全体を少し青み寄りにしたい',
     goodExample: '透明感を出したいので、やや青み寄りにカラグレしてください',
   },
   timecode: {
-    badExample: '動画の真ん中あたりのテロップを直して',
+    badExample: '動画の15秒あたりにあるテロップを赤色にしたい',
     goodExample: '00:15のテロップを赤色に変更してください',
   },
   tonemana: {
-    badExample: 'なんか、うちの商品っぽくない',
+    badExample: 'ブランド指定のピンクと明朝体で、テロップを統一したい',
     goodExample: 'ブランドのトンマナに合わせ、テロップをピンクと明朝体で統一してください',
   },
 }

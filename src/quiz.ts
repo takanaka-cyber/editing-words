@@ -99,6 +99,10 @@ export function stripOuterQuotes(value: string): string {
   return value.startsWith('「') && value.endsWith('」') ? value.slice(1, -1) : value
 }
 
+export function formatQuizTermName(value: string): string {
+  return value.replace(/\s*[（(]\s*[）)]\s*$/, '').trim()
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -146,9 +150,9 @@ function takeTerm(
   return term
 }
 
-function isEligibleForKind(term: Term, kind: QuizKind): boolean {
+export function isEligibleForKind(term: Term, kind: QuizKind): boolean {
   if (kind === 'example-to-term') {
-    return true
+    return maskAnswerTerm(term.example, term) !== term.example
   }
 
   if (kind === 'meaning-to-term') {
@@ -257,7 +261,7 @@ function chooseKind(
   )
 }
 
-function buildQuestion(
+export function buildQuestion(
   kind: QuizKind,
   term: Term,
   terms: Term[],
@@ -274,7 +278,7 @@ function buildQuestion(
     kind,
     correctChoiceId: term.id,
     answerTermId: term.id,
-    answerName: term.name,
+    answerName: formatQuizTermName(term.name),
     explanation: term.meaning,
   }
 
@@ -282,11 +286,11 @@ function buildQuestion(
     return {
       ...base,
       formatLabel: 'HOW TO ASK',
-      lead: 'この依頼、どの用語のこと？',
+      lead: '＿＿＿＿に入る用語は？',
       prompt: maskAnswerTerm(term.example, term),
       choices: choiceTerms.map((choice) => ({
         id: choice.id,
-        label: choice.name,
+        label: formatQuizTermName(choice.name),
       })),
     }
   }
@@ -299,7 +303,7 @@ function buildQuestion(
       prompt: term.meaning,
       choices: choiceTerms.map((choice) => ({
         id: choice.id,
-        label: choice.name,
+        label: formatQuizTermName(choice.name),
       })),
     }
   }
@@ -309,7 +313,7 @@ function buildQuestion(
       ...base,
       formatLabel: 'MATCH',
       lead: '用語と意味を正しく結びつけよう',
-      prompt: `「${term.name}」の説明として正しいものは？`,
+      prompt: `「${formatQuizTermName(term.name)}」の説明として正しいものは？`,
       choices: choiceTerms.map((choice) => ({
         id: choice.id,
         label: choice.meaning,
@@ -320,8 +324,8 @@ function buildQuestion(
   return {
     ...base,
     formatLabel: 'REWRITE',
-    lead: '曖昧な依頼を、編集者へ伝わる言葉に',
-    prompt: `「${term.badExample}」を、より具体的に直すと？`,
+    lead: '依頼の意図を保ったまま、編集者へ伝わる言葉に',
+    prompt: `「${term.badExample}」の意図を変えず、明確に伝えるなら？`,
     choices: choiceTerms.map((choice) => ({
       id: choice.id,
       label: stripOuterQuotes(choice.goodExample ?? choice.example),
