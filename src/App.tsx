@@ -6,20 +6,28 @@ import {
   type CSSProperties,
   type MouseEvent,
 } from 'react'
-import { TERMS, type Term } from './data/terms'
+import { SOURCE_SNAPSHOT, TERMS, type Term } from './data/terms'
 import { TERM_MEDIA, type TermMedia as TermMediaData } from './data/termMedia'
-import { createQuiz, type QuizQuestion } from './quiz'
+import {
+  createQuiz,
+  questionCountForMode,
+  type QuizMode,
+} from './quiz'
+import {
+  answeredQuestionCount,
+  clearActiveQuiz,
+  readActiveQuiz,
+  readQuizProfile,
+  recordQuizAnswer,
+  weakTermCount,
+  writeActiveQuiz,
+  writeQuizProfile,
+  type QuizProfile,
+  type QuizRun,
+} from './quizProgress'
 
 type Filter = 'all' | '映像' | '音' | 'その他' | 'bookmarks'
-type Screen = 'home' | 'quiz' | 'result'
-
-type QuizRun = {
-  questions: QuizQuestion[]
-  index: number
-  selectedId: string | null
-  score: number
-  wrongIds: string[]
-}
+type Screen = 'home' | 'quiz-menu' | 'quiz' | 'result'
 
 const FILTER_LABELS: Record<Filter, { en: string; ja: string }> = {
   all: { en: 'ALL TERMS', ja: 'すべての用語' },
@@ -30,6 +38,43 @@ const FILTER_LABELS: Record<Filter, { en: string; ja: string }> = {
 }
 
 const LETTERS = ['A', 'B', 'C', 'D']
+const TERM_IDS = new Set(TERMS.map((term) => term.id))
+const QUIZ_SOURCE_SIGNATURE = [
+  SOURCE_SNAPSHOT.spreadsheetId,
+  SOURCE_SNAPSHOT.range,
+  SOURCE_SNAPSHOT.syncedOn,
+  SOURCE_SNAPSHOT.rowCount,
+].join(':')
+
+const QUIZ_COURSES: Array<{
+  id: QuizMode
+  label: string
+  title: string
+  description: string
+}> = [
+  {
+    id: 'quick',
+    label: 'QUICK',
+    title: '5問',
+    description: 'すきま時間に、苦手と未回答をバランスよく',
+  },
+  {
+    id: 'standard',
+    label: 'STANDARD',
+    title: '20問',
+    description: '苦手を優先しながら、しっかり確認',
+  },
+  {
+    id: 'master',
+    label: 'MASTER',
+    title: `全${TERMS.length}問`,
+    description: 'すべての用語を重複なしで1回ずつ',
+  },
+]
+
+function quizModeName(mode: QuizMode): string {
+  return QUIZ_COURSES.find((course) => course.id === mode)?.label ?? 'QUIZ'
+}
 
 function categoryLabel(category: Term['cat']) {
   return category === 'その他' ? category : `${category}系`
@@ -708,6 +753,95 @@ function DetailPanel({
   )
 }
 
+function QuizMenu({
+  profile,
+  activeRun,
+  onHome,
+  onStart,
+  onResume,
+}: {
+  profile: QuizProfile
+  activeRun: QuizRun | null
+  onHome: () => void
+  onStart: (mode: QuizMode) => void
+  onResume: () => void
+}) {
+  const answered = answeredQuestionCount(profile)
+  const weak = weakTermCount(profile)
+
+  return (
+    <section className="quiz-menu-screen">
+      <div className="quiz-menu__topbar">
+        <button type="button" onClick={onHome}>
+          ← 用語一覧へ
+        </button>
+        <span className="oswald">QUIZ COURSE</span>
+      </div>
+      <div className="quiz-menu__content">
+        <p className="quiz-menu__eyebrow oswald">CHOOSE YOUR COURSE</p>
+        <h1>クイズの問題数を選ぶ</h1>
+        <p className="quiz-menu__lead">
+          回答履歴をこのブラウザに保存し、間違えた用語を次回から優先します。
+        </p>
+
+        {activeRun && (
+          <div className="quiz-resume">
+            <div>
+              <span className="oswald">CONTINUE · {quizModeName(activeRun.mode)}</span>
+              <strong>
+                {activeRun.index + 1} / {activeRun.questions.length}問目から再開
+              </strong>
+            </div>
+            <div className="quiz-resume__actions">
+              <button className="coral-cta" type="button" onClick={onResume}>
+                続きから →
+              </button>
+              <button type="button" onClick={() => onStart(activeRun.mode)}>
+                最初から
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="quiz-course-grid">
+          {QUIZ_COURSES.map((course, index) => (
+            <button
+              key={course.id}
+              className={`quiz-course-card quiz-course-card--${course.id}`}
+              type="button"
+              onClick={() => onStart(course.id)}
+              aria-label={`${course.label} ${course.title}を始める`}
+            >
+              <span className="quiz-course-card__number oswald">0{index + 1}</span>
+              <span className="quiz-course-card__label oswald">{course.label}</span>
+              <strong>{course.title}</strong>
+              <small>{course.description}</small>
+              {profile.preferredMode === course.id && (
+                <i>前回選択</i>
+              )}
+              <b aria-hidden="true">→</b>
+            </button>
+          ))}
+        </div>
+
+        <div className="quiz-learning-summary" aria-label="このブラウザの学習データ">
+          <span>
+            <small className="oswald">ANSWERED</small>
+            <strong>{answered}</strong>
+            <i>回答</i>
+          </span>
+          <span>
+            <small className="oswald">REVIEW</small>
+            <strong>{weak}</strong>
+            <i>復習候補</i>
+          </span>
+          <p>この端末・ブラウザだけに保存されます</p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function QuizView({
   run,
   onBack,
@@ -729,17 +863,30 @@ function QuizView({
         <button type="button" onClick={onBack}>
           ← 一覧にもどる
         </button>
-        <div className="quiz-progress" aria-label={`${run.index + 1}問目／全${run.questions.length}問`}>
-          <div aria-hidden="true">
-            {run.questions.map((item, index) => (
+        <div
+          className={`quiz-progress ${run.questions.length > 5 ? 'is-long' : ''}`}
+          aria-label={`${run.index + 1}問目／全${run.questions.length}問`}
+        >
+          {run.questions.length <= 5 ? (
+            <div className="quiz-progress__dots" aria-hidden="true">
+              {run.questions.map((item, index) => (
+                <span
+                  key={item.id}
+                  className={`${index < run.index ? 'is-done' : ''} ${
+                    index === run.index ? 'is-current' : ''
+                  }`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="quiz-progress__bar" aria-hidden="true">
               <span
-                key={item.id}
-                className={`${index < run.index ? 'is-done' : ''} ${
-                  index === run.index ? 'is-current' : ''
-                }`}
+                style={{
+                  width: `${((run.index + 1) / run.questions.length) * 100}%`,
+                }}
               />
-            ))}
-          </div>
+            </div>
+          )}
           <strong className="oswald">
             {run.index + 1} / {run.questions.length}
           </strong>
@@ -930,7 +1077,12 @@ export default function App() {
   )
   const [viewed, setViewed] = useState<string[]>(() => readStoredIds('ew-viewed'))
   const [screen, setScreen] = useState<Screen>('home')
-  const [quizRun, setQuizRun] = useState<QuizRun | null>(null)
+  const [quizProfile, setQuizProfile] = useState<QuizProfile>(() =>
+    readQuizProfile(TERM_IDS),
+  )
+  const [quizRun, setQuizRun] = useState<QuizRun | null>(() =>
+    readActiveQuiz(QUIZ_SOURCE_SIGNATURE, TERM_IDS),
+  )
 
   const visibleTerms = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('ja')
@@ -977,12 +1129,13 @@ export default function App() {
 
   const goHome = () => {
     setScreen('home')
-    setQuizRun(null)
+    if (screen === 'result') setQuizRun(null)
     setDetailId(null)
   }
 
   const openDetail = (termId: string) => {
     setScreen('home')
+    if (screen === 'result') setQuizRun(null)
     setDetailId(termId)
     setViewed((current) => {
       if (current.includes(termId)) return current
@@ -1016,47 +1169,86 @@ export default function App() {
     toggleBookmark(termId)
   }
 
-  const startQuiz = () => {
+  const openQuizMenu = () => {
+    setDetailId(null)
+    if (screen === 'result') setQuizRun(null)
+    setScreen('quiz-menu')
+  }
+
+  const startQuiz = (mode: QuizMode) => {
+    if (
+      quizRun &&
+      screen !== 'result' &&
+      !window.confirm('進行中のクイズを最初からやり直しますか？')
+    ) {
+      return
+    }
     setDetailId(null)
     setScreen('quiz')
-    setQuizRun({
-      questions: createQuiz(TERMS),
+    const nextProfile = { ...quizProfile, preferredMode: mode }
+    const nextRun: QuizRun = {
+      version: 1,
+      sourceSignature: QUIZ_SOURCE_SIGNATURE,
+      mode,
+      questions: createQuiz(TERMS, {
+        count: questionCountForMode(mode, TERMS.length),
+        stats: nextProfile.termStats,
+      }),
       index: 0,
       selectedId: null,
       score: 0,
       wrongIds: [],
-    })
+      startedAt: new Date().toISOString(),
+    }
+    setQuizProfile(nextProfile)
+    setQuizRun(nextRun)
+    writeQuizProfile(nextProfile)
+    writeActiveQuiz(nextRun)
+  }
+
+  const resumeQuiz = () => {
+    if (!quizRun) return
+    setDetailId(null)
+    setScreen('quiz')
   }
 
   const answerQuestion = (choiceId: string) => {
-    setQuizRun((current) => {
-      if (!current || current.selectedId) return current
-      const question = current.questions[current.index]
-      const correct = choiceId === question.correctChoiceId
-      return {
-        ...current,
-        selectedId: choiceId,
-        score: current.score + (correct ? 1 : 0),
-        wrongIds: correct
-          ? current.wrongIds
-          : [...current.wrongIds, question.answerTermId],
-      }
-    })
+    if (!quizRun || quizRun.selectedId) return
+    const question = quizRun.questions[quizRun.index]
+    const correct = choiceId === question.correctChoiceId
+    const nextRun = {
+      ...quizRun,
+      selectedId: choiceId,
+      score: quizRun.score + (correct ? 1 : 0),
+      wrongIds: correct
+        ? quizRun.wrongIds
+        : [...quizRun.wrongIds, question.answerTermId],
+    }
+    const nextProfile = recordQuizAnswer(
+      quizProfile,
+      question.answerTermId,
+      correct,
+    )
+    setQuizRun(nextRun)
+    setQuizProfile(nextProfile)
+    writeActiveQuiz(nextRun)
+    writeQuizProfile(nextProfile)
   }
 
   const nextQuestion = () => {
-    setQuizRun((current) => {
-      if (!current?.selectedId) return current
-      if (current.index === current.questions.length - 1) {
-        setScreen('result')
-        return current
-      }
-      return {
-        ...current,
-        index: current.index + 1,
-        selectedId: null,
-      }
-    })
+    if (!quizRun?.selectedId) return
+    if (quizRun.index === quizRun.questions.length - 1) {
+      clearActiveQuiz()
+      setScreen('result')
+      return
+    }
+    const nextRun = {
+      ...quizRun,
+      index: quizRun.index + 1,
+      selectedId: null,
+    }
+    setQuizRun(nextRun)
+    writeActiveQuiz(nextRun)
   }
 
   const changeFilter = (nextFilter: Filter) => {
@@ -1074,7 +1266,7 @@ export default function App() {
         viewed={viewed}
         onFilter={changeFilter}
         onHome={goHome}
-        onQuiz={startQuiz}
+        onQuiz={openQuizMenu}
       />
       <main className="app-main">
         <MobileHeader onHome={goHome} />
@@ -1119,6 +1311,15 @@ export default function App() {
             </div>
           </>
         )}
+        {screen === 'quiz-menu' && (
+          <QuizMenu
+            profile={quizProfile}
+            activeRun={quizRun}
+            onHome={goHome}
+            onStart={startQuiz}
+            onResume={resumeQuiz}
+          />
+        )}
         {screen === 'quiz' && quizRun && (
           <QuizView
             run={quizRun}
@@ -1130,7 +1331,7 @@ export default function App() {
         {screen === 'result' && quizRun && (
           <ResultView
             run={quizRun}
-            onRetry={startQuiz}
+            onRetry={() => startQuiz(quizRun.mode)}
             onHome={goHome}
             onReview={openDetail}
           />
@@ -1146,7 +1347,7 @@ export default function App() {
             onBookmark={() => toggleBookmark(detailTerm.id)}
           />
         )}
-        <MobileTabs screen={screen} onHome={goHome} onQuiz={startQuiz} />
+        <MobileTabs screen={screen} onHome={goHome} onQuiz={openQuizMenu} />
       </main>
     </div>
   )

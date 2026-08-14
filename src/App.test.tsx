@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import App from './App'
 import { TERMS } from './data/terms'
@@ -138,10 +138,15 @@ describe('App', () => {
     15_000,
   )
 
-  it('選択式クイズを開始して回答結果を表示する', () => {
+  it('クイズメニューで3コースを表示し、5問コースの回答結果を表示する', () => {
     render(<App />)
 
     fireEvent.click(screen.getByRole('button', { name: 'クイズに挑戦 Q.' }))
+    expect(screen.getByRole('button', { name: 'QUICK 5問を始める' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'STANDARD 20問を始める' })).toBeVisible()
+    expect(screen.getByRole('button', { name: 'MASTER 全55問を始める' })).toBeVisible()
+
+    fireEvent.click(screen.getByRole('button', { name: 'QUICK 5問を始める' }))
     expect(screen.getByText('1 / 5')).toBeVisible()
     const choices = Array.from(
       document.querySelectorAll<HTMLButtonElement>('.quiz-choice'),
@@ -151,5 +156,63 @@ describe('App', () => {
     fireEvent.click(choices[0])
     expect(screen.getByText(/CORRECT!|MISS…/)).toBeVisible()
     expect(screen.getByRole('button', { name: /次の問題|結果を見る/ })).toBeVisible()
+  })
+
+  it('20問コースは数値とバーで進捗を表示する', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'クイズに挑戦 Q.' }))
+    fireEvent.click(screen.getByRole('button', { name: 'STANDARD 20問を始める' }))
+
+    expect(screen.getByText('1 / 20')).toBeVisible()
+    expect(document.querySelector('.quiz-progress__bar')).toBeInTheDocument()
+  })
+
+  it('全問コースは現在の全55語で開始する', () => {
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'クイズに挑戦 Q.' }))
+    fireEvent.click(screen.getByRole('button', { name: 'MASTER 全55問を始める' }))
+
+    expect(screen.getByText('1 / 55')).toBeVisible()
+    expect(document.querySelector('.quiz-progress__bar')).toBeInTheDocument()
+  })
+
+  it('進行中の回答状態を再読み込み後に続きから再開する', () => {
+    const firstRender = render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'クイズに挑戦 Q.' }))
+    fireEvent.click(screen.getByRole('button', { name: 'STANDARD 20問を始める' }))
+    fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.quiz-choice')[0])
+    expect(screen.getByText(/CORRECT!|MISS…/)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '← 一覧にもどる' }))
+    firstRender.unmount()
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'クイズに挑戦 Q.' }))
+    expect(screen.getByText('1 / 20問目から再開')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: '続きから →' }))
+
+    expect(screen.getByText('1 / 20')).toBeVisible()
+    expect(screen.getByText(/CORRECT!|MISS…/)).toBeVisible()
+  })
+
+  it('完了後にコース画面から新しく始めても進行中の確認を出さない', () => {
+    const confirm = vi.spyOn(window, 'confirm')
+    render(<App />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'クイズに挑戦 Q.' }))
+    fireEvent.click(screen.getByRole('button', { name: 'QUICK 5問を始める' }))
+    for (let index = 0; index < 5; index += 1) {
+      fireEvent.click(document.querySelectorAll<HTMLButtonElement>('.quiz-choice')[0])
+      fireEvent.click(screen.getByRole('button', { name: /次の問題|結果を見る/ }))
+    }
+
+    expect(document.querySelector('.score-ring')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Q. クイズ' }))
+    fireEvent.click(screen.getByRole('button', { name: 'QUICK 5問を始める' }))
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(screen.getByText('1 / 5')).toBeVisible()
   })
 })

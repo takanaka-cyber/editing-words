@@ -4,7 +4,9 @@ import {
   createQuiz,
   getTermAliases,
   maskAnswerTerm,
+  questionCountForMode,
   stripOuterQuotes,
+  type TermQuizStat,
 } from './quiz'
 
 function deterministicRandom() {
@@ -66,6 +68,62 @@ describe('createQuiz', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
+  it('20問を重複なし・4択・同一形式の連続なしで生成する', () => {
+    const questions = createQuiz(TERMS, {
+      count: 20,
+      random: deterministicRandom(),
+    })
+
+    expect(questions).toHaveLength(20)
+    expect(new Set(questions.map((question) => question.answerTermId)).size).toBe(20)
+    questions.forEach((question, index) => {
+      expect(question.choices).toHaveLength(4)
+      expect(question.choices.some((choice) => choice.id === question.correctChoiceId)).toBe(
+        true,
+      )
+      if (index > 0) expect(question.kind).not.toBe(questions[index - 1].kind)
+    })
+  })
+
+  it('全問では55語を1回ずつ出題する', () => {
+    const questions = createQuiz(TERMS, {
+      count: TERMS.length,
+      random: deterministicRandom(),
+    })
+    const questionIds = questions.map((question) => question.answerTermId)
+
+    expect(questions).toHaveLength(55)
+    expect(new Set(questionIds)).toEqual(new Set(TERMS.map((term) => term.id)))
+    questions.forEach((question, index) => {
+      if (index > 0) expect(question.kind).not.toBe(questions[index - 1].kind)
+    })
+  })
+
+  it('5問では間違い履歴のある用語を半数以上優先する', () => {
+    const stats = Object.fromEntries(
+      TERMS.slice(0, 8).map((term, index) => [
+        term.id,
+        {
+          attempts: 4,
+          correct: index,
+          wrong: 4 - index,
+          streak: 0,
+          lastAnsweredAt: '2026-08-14T00:00:00.000Z',
+        } satisfies TermQuizStat,
+      ]),
+    )
+    const questions = createQuiz(TERMS, {
+      count: 5,
+      stats,
+      random: deterministicRandom(),
+    })
+    const weakIds = new Set(Object.keys(stats).filter((id) => stats[id].wrong > 0))
+
+    expect(
+      questions.filter((question) => weakIds.has(question.answerTermId)),
+    ).toHaveLength(3)
+  })
+
   it('用語を当てる設問文に正解語を表示しない', () => {
     for (let seed = 1; seed <= 100; seed += 1) {
       let state = seed
@@ -93,6 +151,15 @@ describe('createQuiz', () => {
           })
         })
     }
+  })
+})
+
+describe('questionCountForMode', () => {
+  it('5問・20問・全問を現在の用語数以内で返す', () => {
+    expect(questionCountForMode('quick', 55)).toBe(5)
+    expect(questionCountForMode('standard', 55)).toBe(20)
+    expect(questionCountForMode('master', 55)).toBe(55)
+    expect(questionCountForMode('standard', 12)).toBe(12)
   })
 })
 

@@ -6,6 +6,16 @@ export type QuizKind =
   | 'term-to-meaning'
   | 'rewrite'
 
+export type QuizMode = 'quick' | 'standard' | 'master'
+
+export type TermQuizStat = {
+  attempts: number
+  correct: number
+  wrong: number
+  streak: number
+  lastAnsweredAt: string | null
+}
+
 export type QuizChoice = {
   id: string
   label: string
@@ -25,6 +35,12 @@ export type QuizQuestion = {
 }
 
 type RandomSource = () => number
+
+type CreateQuizOptions = {
+  count?: number
+  stats?: Record<string, TermQuizStat>
+  random?: RandomSource
+}
 
 const KIND_ORDERS: QuizKind[][] = [
   [
@@ -56,6 +72,19 @@ const KIND_ORDERS: QuizKind[][] = [
     'meaning-to-term',
   ],
 ]
+
+const LONG_KIND_ORDERS: QuizKind[][] = [
+  ['example-to-term', 'meaning-to-term', 'rewrite', 'term-to-meaning'],
+  ['meaning-to-term', 'term-to-meaning', 'example-to-term', 'rewrite'],
+  ['rewrite', 'example-to-term', 'term-to-meaning', 'meaning-to-term'],
+  ['term-to-meaning', 'rewrite', 'meaning-to-term', 'example-to-term'],
+]
+
+export function questionCountForMode(mode: QuizMode, totalTerms: number): number {
+  if (mode === 'quick') return Math.min(5, totalTerms)
+  if (mode === 'standard') return Math.min(20, totalTerms)
+  return totalTerms
+}
 
 export function shuffle<T>(items: T[], random: RandomSource = Math.random): T[] {
   const result = [...items]
@@ -150,6 +179,84 @@ function getChoiceTerms(
   return shuffle([correct, ...distractors], random)
 }
 
+function weaknessScore(stat: TermQuizStat): number {
+  if (stat.attempts === 0 || stat.wrong === 0) return 0
+  const errorRate = stat.wrong / stat.attempts
+  return stat.wrong * 3 + errorRate * 4 - stat.streak * 1.5
+}
+
+function selectQuizTerms(
+  terms: Term[],
+  count: number,
+  stats: Record<string, TermQuizStat>,
+  random: RandomSource,
+): Term[] {
+  const shuffled = shuffle(terms, random)
+  const weak = shuffled
+    .filter((term) => weaknessScore(stats[term.id] ?? EMPTY_STAT) > 0)
+    .sort(
+      (left, right) =>
+        weaknessScore(stats[right.id] ?? EMPTY_STAT) -
+        weaknessScore(stats[left.id] ?? EMPTY_STAT),
+    )
+  const unseen = shuffled.filter(
+    (term) => (stats[term.id]?.attempts ?? 0) === 0 && !weak.includes(term),
+  )
+  const remaining = shuffled.filter(
+    (term) => !weak.includes(term) && !unseen.includes(term),
+  )
+  const weakTarget = Math.min(weak.length, Math.ceil(count * 0.5))
+  const unseenTarget = Math.min(
+    unseen.length,
+    Math.ceil(count * 0.3),
+    count - weakTarget,
+  )
+  const priorityTerms = [
+    ...weak.slice(0, weakTarget),
+    ...unseen.slice(0, unseenTarget),
+  ]
+  const fillTerms = shuffle(
+    [
+      ...weak.slice(weakTarget),
+      ...unseen.slice(unseenTarget),
+      ...remaining,
+    ],
+    random,
+  ).slice(0, count - priorityTerms.length)
+
+  return shuffle([...priorityTerms, ...fillTerms], random)
+}
+
+const EMPTY_STAT: TermQuizStat = {
+  attempts: 0,
+  correct: 0,
+  wrong: 0,
+  streak: 0,
+  lastAnsweredAt: null,
+}
+
+function chooseKind(
+  preferred: QuizKind,
+  kindOrder: QuizKind[],
+  pool: Term[],
+  used: Set<string>,
+  previous: QuizKind | null,
+): QuizKind {
+  const candidates = [
+    preferred,
+    ...kindOrder.filter((kind) => kind !== preferred),
+    'example-to-term' as QuizKind,
+    'term-to-meaning' as QuizKind,
+  ]
+  const available = (kind: QuizKind) =>
+    pool.some((term) => !used.has(term.id) && isEligibleForKind(term, kind))
+  return (
+    candidates.find((kind) => kind !== previous && available(kind)) ??
+    candidates.find(available) ??
+    'example-to-term'
+  )
+}
+
 function buildQuestion(
   kind: QuizKind,
   term: Term,
@@ -224,29 +331,40 @@ function buildQuestion(
 
 export function createQuiz(
   terms: Term[],
-  random: RandomSource = Math.random,
+  optionsOrRandom: CreateQuizOptions | RandomSource = {},
 ): QuizQuestion[] {
   if (terms.length < 5) {
     throw new Error('クイズには5語以上が必要です')
   }
 
-  const pool = shuffle(terms, random)
+  const options =
+    typeof optionsOrRandom === 'function'
+      ? { random: optionsOrRandom }
+      : optionsOrRandom
+  const random = options.random ?? Math.random
+  const count = Math.max(5, Math.min(options.count ?? 5, terms.length))
+  const pool = selectQuizTerms(terms, count, options.stats ?? {}, random)
   const used = new Set<string>()
+  const kindOrders = count === 5 ? KIND_ORDERS : LONG_KIND_ORDERS
   const kindOrder =
-    KIND_ORDERS[Math.floor(random() * KIND_ORDERS.length)] ?? KIND_ORDERS[0]
+    kindOrders[Math.floor(random() * kindOrders.length)] ?? kindOrders[0]
+  let previousKind: QuizKind | null = null
 
-  return kindOrder.map((kind, index) => {
-    const requestedKind =
-      !pool.some(
-        (term) => !used.has(term.id) && isEligibleForKind(term, kind),
-      )
-        ? 'meaning-to-term'
-        : kind
+  return Array.from({ length: count }, (_, index) => {
+    const preferredKind = kindOrder[index % kindOrder.length]
+    const requestedKind = chooseKind(
+      preferredKind,
+      kindOrder,
+      pool,
+      used,
+      previousKind,
+    )
     const term = takeTerm(
       pool,
       used,
       (candidate) => isEligibleForKind(candidate, requestedKind),
     )
+    previousKind = requestedKind
     return buildQuestion(requestedKind, term, terms, random, index)
   })
 }
