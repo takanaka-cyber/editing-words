@@ -640,6 +640,17 @@ input:focus-visible {
   cursor: pointer;
 }
 
+/* 見た目は小さいまま、押せる範囲だけを 44×44px に広げる */
+.bookmark-button::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  content: '';
+  transform: translate(-50%, -50%);
+}
+
 .bookmark-button:hover {
   background: var(--lime-bright);
 }
@@ -1824,13 +1835,16 @@ input:focus-visible {
   .mobile-filters {
     display: flex;
     gap: 7px;
-    margin-top: 10px;
+    /* 横スクロールの箱で押せる範囲が切れないよう、上にも 4px の余白を取り、その分 margin を減らす */
+    margin-top: 6px;
+    padding-top: 4px;
     padding-bottom: 4px;
     overflow-x: auto;
     scrollbar-color: rgba(16, 25, 58, 0.25) transparent;
   }
 
   .mobile-filter {
+    position: relative;
     display: inline-flex;
     min-height: 37px;
     flex: 0 0 auto;
@@ -1843,6 +1857,17 @@ input:focus-visible {
     font-weight: 900;
     background: var(--card);
     cursor: pointer;
+  }
+
+  /* 高さ 37px の見た目のまま、押せる範囲だけを縦 44px に広げる */
+  .mobile-filter::before {
+    position: absolute;
+    top: 50%;
+    right: -1.5px;
+    left: -1.5px;
+    height: 44px;
+    content: '';
+    transform: translateY(-50%);
   }
 
   .mobile-filter.is-active {
